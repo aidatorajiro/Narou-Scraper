@@ -11,6 +11,7 @@ import tempfile
 import zipfile
 import shutil
 import shelve
+from datetime import datetime
 
 #===============
 #ここからページ取得
@@ -21,7 +22,7 @@ try:
 except:
   sys.exit('Novel not found')
 
-shel = shelve.open(sys.argv[1] + '.shelve', writeback=True)
+shel = shelve.open(sys.argv[1] + '.' + datetime.now().strftime("%Y-%m-%d-%H-%M-%S-") + "%03d" % (datetime.now().microsecond // 1000) + '.shelve', writeback=True)
 
 shel['book_title']       = soup.find("title").text
 

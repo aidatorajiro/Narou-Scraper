@@ -11,7 +11,7 @@ import shutil
 import shelve
 
 try:
-  shel = shelve.open(sys.argv[1] + '.shelve')
+  shel = shelve.open(sys.argv[1] + '.shelve', flag='r')
 except:
   print('shelve file not found!')
 

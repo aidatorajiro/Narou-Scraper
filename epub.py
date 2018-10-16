@@ -9,6 +9,8 @@ import tempfile
 import zipfile
 import shutil
 import shelve
+import html
+import datetime
 
 try:
   shel = shelve.open(sys.argv[1] + '.shelve', flag='r')
@@ -25,9 +27,8 @@ except:
 #│   └── container.xml
 #│
 #├── OEBPS
-#│   ├── toc.ncx
+#│   ├── toc.xhtml
 #│   ├── content.opf
-#│   ├── (stylesheet.css)
 #│   ├── 000.xhtml
 #│   ├── 001.xhtml
 #│   ├──     .
@@ -37,64 +38,65 @@ except:
 identifier = u'narou-epub.' + sys.argv[1] + '.' + str(uuid.uuid4()).upper()
 depth = 1
 totalPageCount = len(shel['titles'])
-maxPageNumber = len(shel['titles'])
 
-bookLanguage_2moji, bookTitle, bookAuthor, bookLanguage_5moji, bookRights, bookPublisher = ['ja', shel['book_title'], shel['book_auther'], u'ja_JP', u'知らないよ！', u'小説家になろう']
+date = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
 
-#toc.ncx作成
+bookLanguage_2moji, bookTitle, bookAuthor, bookLanguage_5moji, bookRights, bookPublisher = ['ja', shel['book_title'], shel['book_auther'], u'ja_JP', u'知らないよ！', u'Narou-Scraper']
 
-toc_ncx = u'''<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE ncx PUBLIC "-//NISO//DTD ncx 2005-1//EN" "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd">
-<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+#toc.xhtml作成
+
+toc_xhtml = u'''<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops" lang="%s">
     <head>
-        <meta name="dtb:uid" content="%s"/>
-        <meta name="dtb:depth" content="%s"/>
-        <meta name="dtb:totalPageCount" content="%s"/>
-        <meta name="dtb:maxPageNumber" content="%s"/>
+        <title>%s</title>
+        <meta charset="utf-8" />
     </head>
-    <doctitle>
-        <text>%s</text>
-    </doctitle>
-    <navMap>''' % (identifier, depth, totalPageCount, maxPageNumber, bookTitle)
+    <body>
+        <nav xmlns:epub="http://www.idpf.org/2007/ops" epub:type="toc" id="toc">
+            <h1>Table of Contents</h1>
+            <ol>''' % (bookLanguage_2moji, bookTitle)
 
-for i in range(0, len(shel['titles'])):
-  toc_ncx += u'''
-        <navPoint id="%s" playOrder="%s">
-            <navLabel><text>%s</text></navLabel>
-            <content src="%s.xhtml"/>
-        </navPoint>''' % (i + 1, i + 1, shel['titles'][i], i + 1)
+for i in range(0, totalPageCount):
+  toc_xhtml += u'''
+                <li>
+                    <a href="%d.xhtml">%s</a>
+                </li>''' %  (i + 1, html.escape(shel['titles'][i]))
 
-toc_ncx += u'''
-    </navMap>
-</ncx>'''
-
+toc_xhtml += u'''
+            </ol>
+        </nav>
+    </body>
+</html>'''
 
 #content.opf作成
 
-content_opf = u'''<package version="3.0" xml:lang="%s" unique-identifier="pub-id" xmlns="http://www.idpf.org/2007/opf">
+content_opf = u'''<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<package xmlns="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" version="3.0" xml:lang="%s" unique-identifier="pub-identifier">
     <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
         <dc:title>%s</dc:title>
-        <dc:creator id="aut">%s</dc:creator>
+        <dc:creator id="creator">%s</dc:creator>
         <dc:language>%s</dc:language>
         <dc:rights>%s</dc:rights>
         <dc:publisher>%s</dc:publisher>
-        <dc:identifier id="BookId">%s</dc:identifier>
+        <dc:identifier id="pub-identifier">urn:uuid:%s</dc:identifier>
+        <dc:date>%s</dc:date>
+        <meta property="dcterms:modified">%s</meta>
     </metadata>
     <manifest>
-        <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml" />
-        <item id="style" href="stylesheet.css" media-type="text/css" />''' % (bookLanguage_2moji, bookTitle, bookAuthor, bookLanguage_5moji, bookRights, bookPublisher, identifier)
+        <item id="htmltoc" properties="nav" media-type="application/xhtml+xml" href="toc.xhtml" />''' % (bookLanguage_2moji, bookTitle, bookAuthor, bookLanguage_2moji, bookRights, bookPublisher, identifier, date, date)
 
-for i in range(0, len(shel['titles'])):
+for i in range(0, totalPageCount):
   content_opf += u'''
-        <item id="%s" href="%s.xhtml" media-type="application/xhtml+xml" properties="nav" />''' % (i + 1, i + 1)
+        <item id="page-%s" href="%s.xhtml" media-type="application/xhtml+xml" />''' % (i + 1, i + 1)
 
 content_opf += u'''
     </manifest>
-    <spine toc="ncx">'''
+    <spine>'''
 
-for i in range(0, len(shel['titles'])):
+for i in range(0, totalPageCount):
   content_opf += u'''
-        <itemref idref="%s" />''' % (i + 1)
+        <itemref idref="page-%s" linear="yes" />''' % (i + 1)
 
 content_opf += u'''
     </spine>
@@ -104,20 +106,20 @@ content_opf += u'''
 
 xhtmls = {}
 
-for i in range(0, len(shel['titles'])):
+for i in range(0, totalPageCount):
   strdata = u'';
   
   if shel['novel_p_arr'][i]:
-  	strdata += shel['novel_p_arr'][i]
-  	strdata += u'\n<br /><hr />\n'
+    strdata += shel['novel_p_arr'][i]
+    strdata += u'\n<br /><hr />\n'
   
   if shel['novel_honbun_arr'][i]:
-  	strdata += shel['novel_honbun_arr'][i]
-  	strdata += u'\n<br /><hr />\n'
+    strdata += shel['novel_honbun_arr'][i]
+    strdata += u'\n<br /><hr />\n'
   
   if shel['novel_a_arr'][i]:
-  	strdata += shel['novel_a_arr'][i]
-  	strdata += u'\n<br /><hr />\n'
+    strdata += shel['novel_a_arr'][i]
+    strdata += u'\n<br /><hr />\n'
   
   xhtmls[i + 1] = u'''<?xml version="1.0" encoding="UTF-8"?>
 <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2011/epub" lang="%s" xml:lang="%s">
@@ -128,7 +130,7 @@ for i in range(0, len(shel['titles'])):
   <h1>%s</h1>
   %s
 </body>
-</html>''' % (bookLanguage_2moji, bookLanguage_2moji, shel['titles'][i], shel['titles'][i], strdata)
+</html>''' % (bookLanguage_2moji, bookLanguage_2moji, html.escape(shel['titles'][i]), html.escape(shel['titles'][i]), strdata)
 
 #container.xml作成
 
@@ -146,8 +148,8 @@ container_xml = u'''<?xml version="1.0"?>
 
 rootdir = tempfile.mkdtemp()
 
-#File minetype
-f = open(os.path.join(rootdir, 'minetype'), 'w')
+#File mimetype
+f = open(os.path.join(rootdir, 'mimetype'), 'w')
 f.write('application/epub+zip')
 f.close()
 
@@ -158,11 +160,11 @@ f = open(os.path.join(rootdir, 'META-INF/container.xml'), 'w')
 f.write(container_xml)
 f.close()
 
-#Directory OEBPS/ (toc.ncx, content.opf, and xhtml documents)
+#Directory OEBPS/ (toc.xhtml, content.opf, and xhtml documents)
 os.mkdir(os.path.join(rootdir, 'OEBPS'))
 
-f = open(os.path.join(rootdir, 'OEBPS/toc.ncx'), 'w')
-f.write(toc_ncx)
+f = open(os.path.join(rootdir, 'OEBPS/toc.xhtml'), 'w')
+f.write(toc_xhtml)
 f.close()
 
 f = open(os.path.join(rootdir, 'OEBPS/content.opf'), 'w')

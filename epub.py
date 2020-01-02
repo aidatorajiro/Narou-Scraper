@@ -79,7 +79,7 @@ content_opf = u'''<?xml version="1.0" encoding="utf-8" standalone="no"?>
         <dc:language>%s</dc:language>
         <dc:rights>%s</dc:rights>
         <dc:publisher>%s</dc:publisher>
-        <dc:identifier id="pub-identifier">urn:uuid:%s</dc:identifier>
+        <dc:identifier id="pub-identifier">%s</dc:identifier>
         <dc:date>%s</dc:date>
         <meta property="dcterms:modified">%s</meta>
     </metadata>

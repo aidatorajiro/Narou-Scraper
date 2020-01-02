@@ -13,12 +13,18 @@ import shutil
 import shelve
 from datetime import datetime
 
+headers = {'User-Agent': 'TheGreatestBrowser 1.0'}
+
+def get_http_data(url):
+  r = requests.get(url, headers=headers)
+  return r.content
+
 #===============
 #ここからページ取得
 #===============
 
 try:
-  soup = BeautifulSoup(requests.get('http://ncode.syosetu.com/' + sys.argv[1] + '/').content.decode('utf-8'), "html.parser")
+  soup = BeautifulSoup(get_http_data('http://ncode.syosetu.com/' + sys.argv[1] + '/').decode('utf-8'), "html.parser")
 except:
   sys.exit('Novel not found')
 
@@ -36,56 +42,59 @@ shel['novel_p_arr']      = []
 shel['novel_honbun_arr'] = []
 shel['novel_a_arr']      = []
 
-i = 1
+article_num = len(soup.find_all("dl", {"class": "novel_sublist2"}))
 
 #ページをwhileループで取得
-while True:
-  time.sleep(10)
-  try:
-    # ページ取得＆解析、今回はutf-8大先生！。
-    soup = BeautifulSoup(requests.get('http://ncode.syosetu.com/' + sys.argv[1] + '/' + str(i) + '/').content.decode('utf-8'), "html.parser")
+for i in range(1, article_num + 1):
+  while True:
+    time.sleep(10)
+    print("retrieving Page" + str(i))
+    try:
+      # ページ取得＆解析、今回はutf-8大先生！。
+      soup = BeautifulSoup(get_http_data('http://ncode.syosetu.com/' + sys.argv[1] + '/' + str(i) + '/').decode('utf-8'), "html.parser")
+      
+      # データ取得。
+      title        = soup.findAll('p', {'class' : 'novel_subtitle'})[0].text
+      novel_p      = soup.find('div', {'id' : 'novel_p'     })
+      novel_honbun = soup.find('div', {'id' : 'novel_honbun'})
+      novel_a      = soup.find('div', {'id' : 'novel_a'     })
     
-    # データ取得。
-    title        = soup.findAll('p', {'class' : 'novel_subtitle'})[0].text
-    novel_p      = soup.find('div', {'id' : 'novel_p'     })
-    novel_honbun = soup.find('div', {'id' : 'novel_honbun'})
-    novel_a      = soup.find('div', {'id' : 'novel_a'     })
+    except HTTPError as e:
+      if e.code == 404:
+        print('Not Found Error on Page' + str(i) + '. Processing next page...')
+        break
+      else:
+        print('An unhandled error has found on Page' + str(i) + '. Retrying...')
+        continue # 再度チャレンジ
     
-  except HTTPError as e:
-    if e.code == 404:
-      print('Scraping has finished.')
-      break
+    except:
+      if soup.find('div', {'class' : 'nothing'}) and soup.find('div', {'class' : 'nothing'}).text == "小説が見つかりません。":
+        print('Not Found Error on Page' + str(i) + '. Processing next page...')
+        break
+      else:
+        print('An unhandled error has found on Page' + str(i) + '. Retrying...')
+        continue # 再度チャレンジ
+    
+    # データ登録
+    if soup.findAll('p', {'class' : 'novel_subtitle'})[0]:
+      shel['titles'].append(title)
+    
+    if novel_p:
+      shel['novel_p_arr']      .append("".join([str(x) for x in novel_p      .contents]))
     else:
-      print('An unhandled error has found on Page' + str(i))
-      continue # 再度チャレンジ
+      shel['novel_p_arr']      .append(None)
     
-  except:
-    if soup.find('div', {'class' : 'nothing'}) and soup.find('div', {'class' : 'nothing'}).text == "小説が見つかりません。":
-      print('Scraping has finished.')
-      break
-    print('An unhandled error has found on Page' + str(i))
-    continue # 再度チャレンジ
-  
-  # データ登録
-  if soup.findAll('p', {'class' : 'novel_subtitle'})[0]:
-    shel['titles'].append(title)
-  
-  if novel_p:
-    shel['novel_p_arr']      .append("".join([str(x) for x in novel_p      .contents]))
-  else:
-    shel['novel_p_arr']      .append(None)
-  
-  if novel_honbun:
-    shel['novel_honbun_arr'] .append("".join([str(x) for x in novel_honbun .contents]))
-  else:
-    shel['novel_honbun_arr'] .append(None)
-  
-  if novel_a:
-    shel['novel_a_arr']      .append("".join([str(x) for x in novel_a      .contents]))
-  else:
-    shel['novel_a_arr']      .append(None)
-  
-  i += 1
+    if novel_honbun:
+      shel['novel_honbun_arr'] .append("".join([str(x) for x in novel_honbun .contents]))
+    else:
+      shel['novel_honbun_arr'] .append(None)
+    
+    if novel_a:
+      shel['novel_a_arr']      .append("".join([str(x) for x in novel_a      .contents]))
+    else:
+      shel['novel_a_arr']      .append(None)
+    
+    break
 
 shel.close()
 

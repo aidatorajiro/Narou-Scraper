@@ -14,12 +14,13 @@ import shelve
 from datetime import datetime
 
 # まず、クッキーを取得。
+headers = {'User-Agent': 'TheGreatestBrowser 1.0'}
 cookies = requests.get('http://noc.syosetu.com/').cookies
 cookies["over18"] = "yes"
 
 # 取得したクッキーを利用してアクセスする。
 def get_http_data(url):
-    r = requests.get(url, cookies=cookies)
+    r = requests.get(url, headers=headers, cookies=cookies)
     return r.content
 
 #===============
